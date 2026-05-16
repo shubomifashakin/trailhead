@@ -108,6 +108,10 @@ func handleInsertFlag(filePath string, amount float64, description string, trans
 	log.Fatalln("No amount entered or amount was 0")
  }
 
+ if amount < 0 {
+	log.Fatalln("Amount cannot be negative")
+ }
+
  if description == "" {
 	log.Fatalln("No description was entered")
  }
@@ -168,7 +172,7 @@ previousLogs,err:= os.ReadFile(filePath)
 
  bytes,err:=json.MarshalIndent(previousLogsArr,"","  ")
  if err != nil {
-	 log.Fatalln("Failed to marshal logs", err)
+	 log.Fatalln("Failed to convert logs to JSON", err)
 	}
 	
  err=os.WriteFile(filePath, bytes, 0644)
@@ -231,64 +235,30 @@ func handleHistoryFlag(filePath string, sortOrder string, limit int, startDate s
  //converts the data from json into the specified data structure
  err = json.Unmarshal(logs, &logsArr)
  if err != nil {
-	 log.Fatalln("Failed to parse logs", err)
+	 log.Fatalln("Failed to parse logs from json", err)
  }
 
- filteredLogs:=logsArr
+ filteredLogs := []logDetails{}  
 
- //filter the logs for the specified transaction type if not all
- if transactionType != "all" {
-	filteredLogs= []logDetails{}
+ for _, entry := range logsArr {
+    if transactionType != "all" && entry.TransactionType != transactionType {
+        continue
+    }
 
-	for _, log:= range logsArr {
-		if log.TransactionType == transactionType {
-          filteredLogs=append(filteredLogs, log)
-		}
-	}
- }
+    parsedDate, _ := time.Parse(timeLayout, entry.TransactionDate)
+    
+    if !parsedEndDate.IsZero() && !parsedDate.Before(parsedEndDate) {
+        continue
+    }
 
- logsBeforeEndDate:= filteredLogs
+    if !parsedStartDate.IsZero() && !parsedDate.After(parsedStartDate) {
+        continue
+    }
 
- //get all the logs that are before the end date
- if !parsedEndDate.IsZero() {
-	logsBeforeEndDate=[]logDetails{}
+    filteredLogs = append(filteredLogs, entry)
+}
 
-	for _, tLog:= range filteredLogs {
-		parsedDate,err:= time.Parse(timeLayout,tLog.TransactionDate)
-
-		if err != nil {
-			log.Fatalln("Invalid log date: ",err)
-		}
-
-
-		if parsedDate.Before(parsedEndDate){
-         logsBeforeEndDate= append(logsBeforeEndDate, tLog)
-		}
-	}
- }
-
- logsBeforeEndDateButAfterStartDate:=logsBeforeEndDate
-
-
- //get all logs that are after the start date
- if !parsedStartDate.IsZero() {
-	logsBeforeEndDateButAfterStartDate=[]logDetails{}
-
-	for _, tLog:= range logsBeforeEndDate {
-		parsedDate,err:= time.Parse(timeLayout,tLog.TransactionDate)
-
-		if err != nil {
-			log.Fatalln("Invalid log date: ",err)
-		}
-
-
-		if parsedDate.After(parsedStartDate){
-         logsBeforeEndDateButAfterStartDate= append(logsBeforeEndDateButAfterStartDate, tLog)
-		}
-	}
- }
- 
- slices.SortFunc(logsBeforeEndDateButAfterStartDate, func(a, b logDetails) int {
+ slices.SortFunc(filteredLogs, func(a, b logDetails) int {
     dateA, _ := time.Parse(timeLayout, a.TransactionDate)
     dateB, _ := time.Parse(timeLayout, b.TransactionDate)
 
@@ -299,7 +269,7 @@ func handleHistoryFlag(filePath string, sortOrder string, limit int, startDate s
 })
 
 
-result := logsBeforeEndDateButAfterStartDate
+result := filteredLogs
 if limit < len(result) {
     result = result[:limit]
 }
