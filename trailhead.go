@@ -39,6 +39,8 @@ func main(){
  var historyEndDate string
  var historyTransactionType string
 
+ log.SetFlags(log.Ldate|log.Ltime)
+
  historyFlag:= "history"
  insertFlag:= "insert"
  historyCommand:= flag.NewFlagSet(historyFlag,flag.ExitOnError)
